@@ -68,10 +68,10 @@ class PokemonMovesScraper:
         move_power = processNumber(info_box_addr2[3].select_one('td').text)
         move_accuracy = processNumber(info_box_addr2[4].select_one('td').text)
         move_gen = processGen(info_box_addr.select_one('tr:nth-of-type(6) th + td a').text)
-        moves_id = moves_count + 1
+        move_id = self.moves_count + 1
 
         self.moves.append([move_id, move_name, move_type, move_category, move_PP, move_power, move_accuracy, move_gen])
-        moves_count += 1
+        self.moves_count += 1
     def processMovesURL(self):
         for url in self.moves_url:
             print(url)
