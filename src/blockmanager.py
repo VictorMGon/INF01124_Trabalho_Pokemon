@@ -5,7 +5,15 @@ from filemanager import *
 from bplustree import *
 #from trietree import *
 
+MAGIC_VALUE_LOC = 4
+BLOCK_ID_LOC = 8
+BLOCK_SIZE_LOC = 12
+OFFSET_LOC = 16
+ORDER_LOC = 20
+DELETED_LOC = 24
+
 class AbstractBlockManager:
+    magic_value = b'BMGR'
     def __init__(self,file,offset=0,block_size = 4096):
         self.block_id = 0
         self.deleted_blocks = []
@@ -38,14 +46,34 @@ class AbstractBlockManager:
         self.file.seek(self.offset+self.block_size*b_id)
         return self.file.read(self.block_size)
     def checkFile(self):
-        #TODO
-        pass
+        self.file.seek(MAGIC_VALUE_LOC)
+        if self.file.read(4) == self.magic_value:
+            self.load_state()
     def load_state(self):
-        #TODO
-        pass
+        self.file.seek(BLOCK_ID_LOC)
+        self.block_id = struct.unpack('i',self.file.read(4))[0]
+        self.file.seek(BLOCK_SIZE_LOC)
+        self.block_size = struct.unpack('i',self.file.read(4))[0]
+        self.file.seek(OFFSET_LOC)
+        self.offset = struct.unpack('i',self.file.read(4))[0]
+        self.file.seek(DELETED_LOC)
+        deleted_count = struct.unpack('i',self.file.read(4))[0]
+        for i in range(deleted_count):
+            self.deleted_blocks.append(struct.unpack('i',self.file.read(4))[0])
+        self.loaded = True
     def save_state(self):
-        #TODO
-        pass
+        self.file.seek(MAGIC_VALUE_LOC)
+        self.file.write(self.magic_value)
+        self.file.seek(BLOCK_ID_LOC)
+        self.file.write(struct.pack('i',self.block_id))
+        self.file.seek(BLOCK_SIZE_LOC)
+        self.file.write(struct.pack('i',self.block_size))
+        self.file.seek(OFFSET_LOC)
+        self.file.write(struct.pack('i',self.offset))
+        self.file.seek(DELETED_LOC)
+        self.file.write(struct.pack('i',len(self.deleted_blocks)))
+        for i in range(len(self.deleted_blocks)):
+            self.file.write(struct.pack('i',self.deleted_blocks[i]))
 
 class OverflowBlockManager(AbstractBlockManager):
     def write_bytes(self,cur_b_id,data):
@@ -220,6 +248,14 @@ class BPlusBlockManager(OverflowBlockManager):
         return node
     def setOrder(self,order):
         self.order = order
+    def load_state(self):
+        super().load_state()
+        self.file.seek(ORDER_LOC)
+        self.order = struct.unpack('i',self.file.read(4))[0]
+    def save_state(self):
+        super().save_state()
+        self.file.seek(ORDER_LOC)
+        self.file.write(struct.pack('i',self.order))
 
 class TrieBlockManager(OverflowBlockManager):
     def write_node(self,b_id,node):
@@ -246,6 +282,7 @@ def test_bplus1():
     node.previous = None
     node.block_id = bmgr.generateID()
     bmgr.write_node(node)
+    abfm.destroyFile('test')
 
 def test_bplus2():
     abfm = AbstractFileManager()
@@ -265,6 +302,7 @@ def test_bplus2():
     node.block_id = bmgr.generateID()
 
     bmgr.write_node(node)
+    abfm.destroyFile('test')
 
 def test_bplus3():
     abfm = AbstractFileManager()
@@ -292,6 +330,8 @@ def test_bplus3():
     print(len(read_node.keys),'|',read_node.keys)
     print(len(read_node.keys),'|',read_node.values)
 
+    abfm.destroyFile('test')
+
 def test_bplus4():
     abfm = AbstractFileManager()
     abfm.createFile('test','test.dat')
@@ -317,6 +357,8 @@ def test_bplus4():
 
     print(len(read_node.keys),'|',read_node.keys)
     print(len(read_node.values),'|',read_node.values)
+
+    abfm.destroyFile('test')
 
 def test_bplus5():
     abfm = AbstractFileManager()
@@ -344,10 +386,29 @@ def test_bplus5():
     print(len(read_node.keys),'|',read_node.keys)
     print(len(read_node.values),'|',read_node.values)
 
+    bmgr.save_state()
+
+    abfm.destroyFile('test')
+
+def test_bplus6():
+    abfm = AbstractFileManager()
+    abfm.loadFile('test','test.dat')
+    file = abfm.getFile('test')
+    bmgr = BPlusBlockManager(file)
+
+    print(bmgr.order)
+
+    node = bmgr.read_node(0)
+
+    print(len(node.keys),'|',node.keys)
+    print(len(node.values),'|',node.values)
+
+    abfm.destroyFile('test')
 if __name__ == '__main__':
     #test_bplus1()
     #test_bplus2()
     #test_bplus3()
     #test_bplus4()
     #test_bplus5()
+    #test_bplus6()
     pass

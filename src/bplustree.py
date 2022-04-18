@@ -127,12 +127,18 @@ class BPlusTree(object):
     Attributes:
         order (int): The maximum number of keys each node can hold.
     """
-    def __init__(self, order=8, bmgr=None):
-        self.root = BNode(order,bmgr)
+    def __init__(self, order=8, bmgr=None, createNew = True):
         self.bm = bmgr
-        if bmgr:
-            bmgr.setOrder(order)
-            bmgr.write_node(self.root,delete_overflow=False)
+        if createNew:
+            self.root = BNode(order,bmgr)
+            if bmgr:
+                bmgr.setOrder(order)
+                bmgr.write_node(self.root,delete_overflow=False)
+        else:
+            if bmgr:
+                self.root = bmgr.read_node(0)
+            else:
+                raise RuntimeError('Block manager must be specified')
 
     def _find(self, node, key):
         """ For a given node and key, returns the index where the key should be inserted and the
@@ -191,7 +197,6 @@ class BPlusTree(object):
     def retrieve(self, key):
         """Returns a value for a given key, and None if the key does not exist."""
         child = self.root
-
         counter = 0
         #print('layer ', counter)
         while not child.leaf:
@@ -209,6 +214,12 @@ class BPlusTree(object):
     def show(self):
         """Prints the keys at each level."""
         self.root.show()
+
+    def save_state(self):
+        if self.bm:
+            self.bm.save_state()
+        else:
+            raise RuntimeError("Saving B+ Tree requires a block manager")
 
 def test_node():
     print('Initializing node...')
@@ -263,6 +274,8 @@ def test_bplustree1():
     print(len(bplustree.root.keys),"|",bplustree.root.keys)
     print(len(bplustree.root.keys),"|",bplustree.root.values)
 
+    fm.destroyFile('testfile2')
+
 
 def test_bplustree2():
     fm = AbstractFileManager()
@@ -293,6 +306,7 @@ def test_bplustree2():
 
     print('root block_id: {}'.format(bplustree.root.block_id))
 
+    fm.destroyFile('testfile2')
 
 def test_bplustree3():
     fm = AbstractFileManager()
@@ -348,9 +362,48 @@ def test_bplustree3():
     print(bplustree.retrieve(43))
 
     print('root block_id: {}'.format(bplustree.root.block_id))
+    bm.save_state()
+
+    fm.destroyFile('testfile2')
+
+def test_bplustree4():
+    fm = AbstractFileManager()
+    fm.loadFile('testfile2','test')
+    bm = BPlusBlockManager(fm.getFile('testfile2'))
+    print(bm.order)
+
+    print('Initializing B+ tree...')
+    bplustree = BPlusTree(bmgr = bm, createNew = False)
+
+    print(bplustree.root.keys)
+
+    print('\nRetrieving values with key 30...')
+    print(bplustree.retrieve(30))
+
+    print('\nRetrieving values with key 50...')
+    print(bplustree.retrieve(50))
+
+    print('\nRetrieving values with key 10...')
+    print(bplustree.retrieve(10))
+
+    print('\nRetrieving values with key 40...')
+    print(bplustree.retrieve(40))
+
+    print('\nRetrieving values with key 15...')
+    print(bplustree.retrieve(15))
+
+    print('\nRetrieving values with key 43...')
+    print(bplustree.retrieve(43))
+
+    print('root block_id: {}'.format(bplustree.root.block_id))
+    bm.save_state()
+
+    fm.destroyFile('testfile2')
 
 if __name__ == '__main__':
     #test_node()
     #test_bplustree1()
     #test_bplustree2()
-    test_bplustree3()
+    #test_bplustree3()
+    #test_bplustree4()
+    pass
