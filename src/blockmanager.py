@@ -222,10 +222,10 @@ class BPlusBlockManager(OverflowBlockManager):
         self.order = order
 
 class TrieBlockManager(OverflowBlockManager):
-    def write_block(self,b_id,node):
+    def write_node(self,b_id,node):
         #TODO
         pass
-    def read_block(self,b_id):
+    def read_node(self,b_id):
         #TODO
         pass
 
