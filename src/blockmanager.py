@@ -1,6 +1,7 @@
 import struct
 import pickle
 import os
+import cachetools
 from filemanager import *
 from bplustree import *
 #from trietree import *
@@ -11,6 +12,7 @@ BLOCK_SIZE_LOC = 12
 OFFSET_LOC = 16
 ORDER_LOC = 20
 DELETED_LOC = 24
+cache_size = 200
 
 class AbstractBlockManager:
     magic_value = b'BMGR'
@@ -21,6 +23,7 @@ class AbstractBlockManager:
         self.file = file
         self.offset = offset
         self.loaded = False
+        self.cache = cachetools.LRUCache(maxsize=cache_size*block_size)
         self.checkFile()
     def generateID(self):
         if self.deleted_blocks:
@@ -31,20 +34,26 @@ class AbstractBlockManager:
         self.block_id += 1
         return new_id
     def delete_block(self,b_id):
-        #print('delet: ', b_id)
         self.deleted_blocks.append(b_id)
-        #print(self.deleted_blocks)
     def write_block(self,b_id,data):
-        self.file.seek(self.offset+self.block_size*b_id)
         if len(data)>=self.block_size:
             data = data[:self.block_size]
         elif len(data)<self.block_size:
             data += b'\x00'*(self.block_size-len(data))
-        #print(self.offset,' ',self.block_size*b_id)
+        old_data = self.cache.get(b_id)
+        if old_data is not None:
+            self.cache[b_id] = data
+        self.file.seek(self.offset+self.block_size*b_id)
         self.file.write(data)
     def read_block(self,b_id):
-        self.file.seek(self.offset+self.block_size*b_id)
-        return self.file.read(self.block_size)
+        data = self.cache.get(b_id)
+        if data is not None:
+            return data
+        else:
+            self.file.seek(self.offset+self.block_size*b_id)
+            data = self.file.read(self.block_size)
+            self.cache[b_id] = data
+        return data
     def checkFile(self):
         self.file.seek(MAGIC_VALUE_LOC)
         if self.file.read(4) == self.magic_value:
@@ -101,6 +110,7 @@ class OverflowBlockManager(AbstractBlockManager):
             data += struct.pack('i',-1)
             cur_b_id = next_b_id
         data += new_data
+        #print(data[:8])
         return cur_b_id,data
     def read_bytes(self,cur_b_id):
         #data = struct.pack('i',-1) + struct.pack('i',-1) + data
@@ -121,10 +131,11 @@ class OverflowBlockManager(AbstractBlockManager):
     def pop_bytes(self,next_b_id,data,num):
         if len(data)<num:
             next_block_data = self.read_block(next_b_id)
+            #print(bytes(next_block_data[:4]))
             next_b_id = struct.unpack('i',bytes(next_block_data[:4]))[0]
             data = bytearray()
             data = next_block_data[4:]
-        return data[:num], data[num:]
+        return next_b_id, data[:num], data[num:]
     def delete_blocks(self,b_id):
         cur_b_id = b_id
         self.delete_block(cur_b_id)
@@ -190,6 +201,7 @@ class BPlusBlockManager(OverflowBlockManager):
             for i in range(len(node.values)):
                 if len(data)+4>self.block_size:
                     counter += 1
+                #print(data[:8])
                 cur_b_id, data = self.insert_bytes(cur_b_id,data,struct.pack('i',len(node.values[i])))
                 for j in range(len(node.values[i])):
                     if len(data)+4>self.block_size:
@@ -203,8 +215,9 @@ class BPlusBlockManager(OverflowBlockManager):
                 cur_b_id, data = self.insert_bytes(cur_b_id,data,struct.pack('i',node.values[i]))
         if len(data)<self.block_size:
             data += b'\x00'*(self.block_size-len(data))
+        #print(data[:16])
         self.write_block(cur_b_id,bytes(data))
-        self.file.seek(self.offset+self.block_size*cur_b_id+4)
+        self.file.seek(self.offset+self.block_size*node.block_id+4)
         self.file.write(struct.pack('i',counter))
     def read_node(self,b_id):
         data = bytearray(self.read_block(b_id))
@@ -218,23 +231,26 @@ class BPlusBlockManager(OverflowBlockManager):
         data = data[25:]
         keys = []
         for i in range(key_count):
-            new_bytes, data = self.pop_bytes(next_b_id,data,4)
+            next_b_id, new_bytes, data = self.pop_bytes(next_b_id,data,4)
             key = struct.unpack('i',new_bytes)[0]
             keys.append(key)
         values = []
         if leaf:
+            #print('beep1:',next_b_id,'count:',value_count)
             for i in range(value_count):
-                new_bytes, data = self.pop_bytes(next_b_id,data,4)
+                next_b_id, new_bytes, data = self.pop_bytes(next_b_id,data,4)
                 sub_value_count = struct.unpack('i',new_bytes)[0]
                 sub_values = []
+                #print('beep2:',next_b_id,'count:',sub_value_count)
                 for j in range(sub_value_count):
-                    new_bytes, data = self.pop_bytes(next_b_id,data,4)
+                    next_b_id, new_bytes, data = self.pop_bytes(next_b_id,data,4)
                     value = struct.unpack('i',new_bytes)[0]
+                    #print(value)
                     sub_values.append(value)
                 values.append(sub_values)
         else:
             for i in range(value_count):
-                new_bytes, data = self.pop_bytes(next_b_id,data,4)
+                next_b_id, new_bytes, data = self.pop_bytes(next_b_id,data,4)
                 value = struct.unpack('i',new_bytes)[0]
                 values.append(value)
         node = BNode(self.order)
@@ -381,12 +397,14 @@ def test_bplus5():
 
     bmgr.write_node(node)
 
+
     read_node = bmgr.read_node(id)
 
     print(len(read_node.keys),'|',read_node.keys)
     print(len(read_node.values),'|',read_node.values)
 
     bmgr.save_state()
+
 
     abfm.destroyFile('test')
 

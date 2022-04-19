@@ -2,6 +2,8 @@ import struct
 import os
 import csv
 from pokemon import *
+from move import *
+from pkmnmove import *
 from blockmanager import *
 
 FILE_DOESNT_EXIST = "File doesn't exist"
@@ -506,7 +508,7 @@ def test_registerfile_3():
     fm.save_state('testfile')
     fm.destroyFile('testfile')
 
-def test_indexfile_1():
+def test_indexfile_1a():
     pos = [2,9,10,1,18,19,20,21,22,23]
 
     fm = IndexFileManager()
@@ -529,6 +531,49 @@ def test_indexfile_1():
     print(fm.index_tree['Pokemon'].retrieve_bptree(7).retrieve(-50))
 
     fm.destroyFile('Pokemon')
+
+def test_indexfile_1b():
+    pos = [1,2,4,5,6]
+
+    fm = IndexFileManager()
+    fm.createFile('Move','move.dat',Move)
+
+    with open('moves.csv',newline='',encoding='utf-8') as csvfile:
+        csv_reader = csv.reader(csvfile, delimiter=',', quotechar='\"')
+        next(csv_reader)
+        for row in csv_reader:
+            cur_move = Move()
+            cur_move.fromCSV(pos,row)
+            fm.dumpRegister('Move',cur_move.serialize())
+        fm.insertFooter('Move')
+
+    fm.save_state('Move')
+
+    print(fm.index_tree['Move'].retrieve_bptree(0).retrieve(-50))
+
+    fm.destroyFile('Move')
+
+def test_indexfile_1c():
+    pos = [1,2]
+
+    fm = IndexFileManager()
+    fm.createFile('PokemonMove','pkmnmove.dat',PokemonMove)
+
+    with open('movespkmn.csv',newline='',encoding='utf-8') as csvfile:
+        csv_reader = csv.reader(csvfile, delimiter=',', quotechar='\"')
+        next(csv_reader)
+        for row in csv_reader:
+            cur_entry = PokemonMove()
+            cur_entry.fromCSV(pos,row)
+            print(cur_entry.move_id)
+            fm.dumpRegister('PokemonMove',cur_entry.serialize())
+        fm.insertFooter('PokemonMove')
+
+    fm.save_state('PokemonMove')
+
+    print(fm.index_tree['PokemonMove'].retrieve_bptree(0).retrieve(-50))
+
+    fm.destroyFile('PokemonMove')
 
 def test_indexfile_2():
     fm = IndexFileManager()
@@ -557,7 +602,9 @@ if __name__ == '__main__':
     #test_registerfile_1()
     #test_registerfile_2()
     #test_registerfile_3()
-    #test_indexfile_1()
+    #test_indexfile_1a()
+    #test_indexfile_1b()
+    #test_indexfile_1c()
     #test_indexfile_2()
     #test_indexfile_3()
     #test_indexfile_4()

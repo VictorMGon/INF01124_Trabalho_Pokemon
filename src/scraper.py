@@ -73,7 +73,7 @@ class PokemonMovesScraper:
         move_power = processNumber(info_box_addr2[3].select_one('td').text)
         move_accuracy = processNumber(info_box_addr2[4].select_one('td').text)
         move_gen = processGen(info_box_addr.select_one('tr:nth-of-type(6) th + td a').text)
-        move_id = self.moves_count + 1
+        move_id = self.moves_count
 
         move_pkmn_list = []
 
@@ -99,7 +99,7 @@ class PokemonMovesScraper:
         with open('movespkmn.csv', 'w', newline='') as csvfile:
             writer = csv.writer(csvfile, delimiter=',', quotechar='\"', quoting=csv.QUOTE_MINIMAL)
             writer.writerow(['entry_id','move_id','pkmn_id',])
-            entry_id = 1
+            entry_id = 0
             for move_pkmn_list in self.moves_pkmn_list:
                 for pkmn_id in move_pkmn_list[1]:
                     writer.writerow([entry_id, move_pkmn_list[0], pkmn_id])

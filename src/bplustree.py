@@ -180,7 +180,6 @@ class BPlusTree(object):
         parent = None
         child = self.root
         # Traverse tree until leaf node is reached.
-
         while not child.leaf:
             parent = child
             child, index = self._find(child, key)
@@ -198,7 +197,6 @@ class BPlusTree(object):
         """Returns a value for a given key, and None if the key does not exist."""
         child = self.root
         counter = 0
-        #print('layer ', counter)
         while not child.leaf:
             counter += 1
             child, index = self._find(child, key)
