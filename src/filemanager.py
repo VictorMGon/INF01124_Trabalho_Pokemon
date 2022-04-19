@@ -16,18 +16,25 @@ def alert_info(str):
     print(str)
 
 class AbstractFileManager:
-    #header:
-    #{magic value: 4 bytes} = b'AAAA'
+    '''
+    Classe responsável para gerenciar arquivos do tipo abstrato
+    '''
     files = {}
     magic_value = b'AFMG'
     def __init__(self):
         self.files = {}
     def prepareHeader(self,tag):
+        '''
+        Preparar header do arquivo associado ao tag
+        '''
         cur_file = self.getFile(tag)
         if cur_file:
             cur_file.seek(0)
             cur_file.write(self.magic_value)
     def createFile(self,tag,name):
+        '''
+        Criação de arquivos do tipo abstrato e a preparação do seu header
+        '''
         f = open(name,'w+b')
         if tag in self.files:
             raise RuntimeError(FILE_ALREADY_EXISTS)
@@ -36,6 +43,9 @@ class AbstractFileManager:
         self.prepareHeader(tag)
         return 1
     def loadFile(self,tag,name):
+        '''
+        Leitura de arquivos do tipo abstrato
+        '''
         f = open(name,'r+b')
         magic_data = f.read(4)
         if tag in self.files:
@@ -46,6 +56,9 @@ class AbstractFileManager:
             self.files[tag] = f
         return 1
     def deleteFile(self,name):
+        '''
+        Exclusão de arquivos do tipo abstrato
+        '''
         if os.path.exists(name):
             f = open(name,'rb')
             if self.magic_value == f.read(4):
@@ -55,6 +68,9 @@ class AbstractFileManager:
             f.close()
             return 0
     def renameFile(self,old_name,new_name):
+        '''
+        Renomeação de arquivos do tipo abstrato
+        '''
         if os.path.exists(old_name):
             f = open(old_name,'rb')
             if self.magic_value == f.read(4):
@@ -64,11 +80,17 @@ class AbstractFileManager:
             f.close()
             return 0
     def getFile(self,tag):
+        '''
+        Retornar objeto de arquivo
+        '''
         try:
             return self.files[tag]
         except KeyError:
             raise RuntimeError(FILE_DOESNT_EXIST)
     def destroyFile(self,tag):
+        '''
+        Destruir objeto de arquivo e eliminar do gerenciador de arquivos
+        '''
         try:
             self.files[tag].close()
             del self.files[tag]
@@ -83,6 +105,9 @@ LAST_REGISTER = 16
 FIRST_REGISTER = 20
 
 class RegisterFileManager(AbstractFileManager):
+    '''
+    Gerenciador de arquivos binários seriais do tipo registro
+    '''
     #header:
     #{magic value: 4 bytes} = b'REGF'
     #{footer_loc: 4 bytes} = [offset to footer location]@@NOT DONE YET
@@ -102,6 +127,9 @@ class RegisterFileManager(AbstractFileManager):
     next_register = {}
     nextID = {}
     def prepareHeader(self,tag):
+        '''
+        Preparar header para arquivos do tipo registro
+        '''
         cur_file = self.getFile(tag)
         if cur_file:
             cur_file.seek(0)
@@ -112,6 +140,9 @@ class RegisterFileManager(AbstractFileManager):
             cur_file.write(struct.pack('i',0))
             self.next_register[tag] = FIRST_REGISTER
     def loadFile(self,tag,name):
+        '''
+        Carregar arquivos do tipo registro
+        '''
         f = open(name,'r+b')
         if tag in self.files:
             alert_info(FILE_ALREADY_EXISTS)
@@ -129,6 +160,9 @@ class RegisterFileManager(AbstractFileManager):
             self.last_register[tag] = struct.unpack('i',f.read(4))[0]
         return 1
     def destroyFile(self,tag):
+        '''
+        Destruição de arquivos do tipo registro
+        '''
         try:
             self.files[tag].close()
             if tag in self.files:
@@ -143,6 +177,9 @@ class RegisterFileManager(AbstractFileManager):
         except KeyError:
             raise RuntimeError(FILE_DOESNT_EXIST)
     def save_state(self,tag):
+        '''
+        Persistência de arquivos do tipo registro
+        '''
         cur_file = self.getFile(tag)
         if cur_file:
             cur_file.seek(NEXT_REGISTER)
@@ -152,15 +189,27 @@ class RegisterFileManager(AbstractFileManager):
             cur_file.seek(LAST_REGISTER)
             cur_file.write(struct.pack('i',self.last_register[tag]))
     def updateNextRegister(self,tag,new_pos):
+        '''
+        Atualizar próximo registro
+        '''
         self.next_register[tag] = new_pos
     def getNextRegister(self,tag):
+        '''
+        Obter próximo registro
+        '''
         return self.next_register[tag]
     def updateFooterLoc(self,tag,new_pos):
+        '''
+        Atualizar a localização do footer
+        '''
         cur_file = self.getFile(tag)
         if cur_file:
             cur_file.seek(FOOTER_LOC)
             cur_file.write(struct.pack('i',new_pos))
     def dumpRegister(self,tag,data):
+        '''
+        Inserção de registros
+        '''
         cur_file = self.getFile(tag)
         if cur_file:
             cur_pos = self.getNextRegister(tag)
@@ -179,6 +228,9 @@ class RegisterFileManager(AbstractFileManager):
             cur_file.write(data)
             self.updateNextRegister(tag,cur_file.tell())
     def insertFooter(self,tag,data):
+        '''
+        Inserção do footer
+        '''
         cur_file = self.getFile(tag)
         if cur_file:
             footer_pos = self.getNextRegister(tag)
@@ -186,10 +238,16 @@ class RegisterFileManager(AbstractFileManager):
             cur_file.seek(footer_pos)
             cur_file.write(data)
     def generateID(self,tag):
+        '''
+        Geração de códigos de identificação para registros
+        '''
         id = self.nextID[tag]
         self.nextID[tag] += 1
         return struct.pack('i',id)
     def deleteRegisters(self,tag,id_array):
+        '''
+        Exclusão de registros a partir de um array de códigos de identificação
+        '''
         if min(id_array) >= self.nextID[tag]:
             self.destroyFile(tag)
             return
@@ -217,9 +275,15 @@ class RegisterFileManager(AbstractFileManager):
         self.deleteFile(file_name)
         self.renameFile(file_name+'.aux',file_name)
     def deleteRegister(self,file_name,id):
+        '''
+        Exclusão de registro a partir do código de identificação
+        '''
         self.deleteRegisters(file_name,[id])
 
 class IndexCollection:
+    '''
+    Estrutura responsável para armazenar árvores de indexação
+    '''
     def __init__(self,type,afmgr,bptree,ttree):
         self.type = type
         self.afmgr = afmgr
@@ -247,9 +311,12 @@ class IndexCollection:
             self.retrieve_ttree(id).save_state()
 
 
-BPTREE_ORDER = 200
+BPTREE_ORDER = 1000+1
 
 class IndexFileManager(RegisterFileManager):
+    '''
+    Gerenciador de arquivos binários seriais do tipo registro com arquivos de índice
+    '''
     #header:
     #{magic value: 4 bytes} = b'IDXF'
     #{footer_loc: 4 bytes} = [offset to footer location]@@UNDER REVIEW
@@ -269,28 +336,34 @@ class IndexFileManager(RegisterFileManager):
     nextID = {}
     index_tree = {}
     def createFile(self,tag,name,type):
+        '''
+        Criação de arquivos indexados
+        '''
         afm = AbstractFileManager()
         bptree = []
         ttree = []
         index_name = 'BPID'
         afm.createFile(index_name,tag+'_'+index_name+'.idx')
-        bmg_index = BPlusBlockManager(afm.getFile(index_name),4096)
+        bmg_index = BPlusBlockManager(afm.getFile(index_name),offset=8192,block_size=8192)
         bp_index = BPlusTree(BPTREE_ORDER,bmg_index)
         bptree.append({'name':index_name,'tree':bp_index})
         for id,index_name in enumerate(type.BPTreeAttr):
             afm.createFile(index_name,tag+'_'+index_name+'.idx')
-            bmg_index = BPlusBlockManager(afm.getFile(index_name),4096)
+            bmg_index = BPlusBlockManager(afm.getFile(index_name),offset=8192,block_size=8192)
             bp_index = BPlusTree(BPTREE_ORDER,bmg_index)
             bptree.append({'name':index_name,'tree':bp_index})
         for id,index_name in enumerate(type.TTreeAttr):
             afm.createFile(index_name,tag+'_'+index_name+'.idx')
-            tmg_index = TrieBlockManager(afm.getFile(index_name),4096)
+            tmg_index = TrieBlockManager(afm.getFile(index_name),offset=8192,block_size=8192)
             t_index = TrieTree(tmg_index)
             bptree.append({'name':index_name,'tree':t_index})
         new_index = IndexCollection(type,afm,bptree,ttree)
         self.index_tree[tag] = new_index
         super().createFile(tag,name)
     def destroyFile(self,tag):
+        '''
+        Destruição de arquivos indexados
+        '''
         try:
             self.files[tag].close()
             if tag in self.files:
@@ -308,6 +381,9 @@ class IndexFileManager(RegisterFileManager):
         except KeyError:
             raise RuntimeError(FILE_DOESNT_EXIST)
     def loadFile(self,tag,name,type):
+        '''
+        Carregamento de arquivos indexados
+        '''
         res = super().loadFile(tag,name)
         if res:
             afm = AbstractFileManager()
@@ -334,10 +410,15 @@ class IndexFileManager(RegisterFileManager):
             loaded_index = IndexCollection(type,afm,bptree,ttree)
             self.index_tree[tag] = loaded_index
     def save_state(self,tag):
+        '''
+        Persistência de arquivos indexados
+        '''
         super().save_state(tag)
         self.index_tree[tag].save_state()
     def prepareHeader(self,tag):
-        #should include register information before initializing index tree
+        '''
+        Preparar header de arquivos indexados
+        '''
         cur_file = self.getFile(tag)
         if cur_file:
             cur_file.seek(0)
@@ -347,11 +428,15 @@ class IndexFileManager(RegisterFileManager):
             cur_file.write(struct.pack('i',0))
             cur_file.write(struct.pack('i',0))
             self.next_register[tag] = FIRST_REGISTER
-            #initiate index tree for each attribute from the register type
     def dumpRegister(self,tag,data):
+        '''
+        Inserir registros e a inserção de seus atributos nas árvores de indexação
+        '''
         cur_file = self.getFile(tag)
         if cur_file:
             #tic = time.perf_counter()
+
+            #Começo da inserção do registro
             cur_pos = self.getNextRegister(tag)
             if tag in self.last_register:
                 cur_file.seek(self.last_register[tag]+4)
@@ -367,11 +452,15 @@ class IndexFileManager(RegisterFileManager):
             cur_file.write(cur_id)
             cur_file.write(data)
             self.updateNextRegister(tag,cur_file.tell())
+            #Final da inserção do registro
+
             #toc = time.perf_counter()
             #print('Register write: ',toc-tic)
             #insert each [attribute(key), file offset(value)] in the associated index tree
             #tic = time.perf_counter()
             #tic_i = time.perf_counter()
+
+            #Inserção dos atributos na árvore de indexação
             self.index_tree[tag].retrieve_bptree(0).insert(struct.unpack('i',cur_id)[0],cur_pos)
             #toc_i = time.perf_counter()
             #print('Primary key insertion: ',toc_i-tic_i)
@@ -388,6 +477,9 @@ class IndexFileManager(RegisterFileManager):
             #toc = time.perf_counter()
             #print('Index tree insertion: ',toc-tic)
     def loadRegister(self,tag,offset):
+        '''
+        Carregamento de registro a partir do offset
+        '''
         cur_file = self.getFile(tag)
         idx_register = self.index_tree[tag].type()
         reg_size = len(idx_register.serialize())
@@ -398,15 +490,15 @@ class IndexFileManager(RegisterFileManager):
         idx_register.fromBytes(reg_data)
         return {'previous':prev_reg_pos,'next':next_reg_pos,'id':cur_id,'register':idx_register}
     def insertFooter(self,tag):
+        '''
+        Inserção do footer do arquivo indexado
+        '''
         cur_file = self.getFile(tag)
         if cur_file:
             footer_pos = self.getNextRegister(tag)
-            #insert padding?
-            #insert footer header as a function of the collection of index tree
             self.updateFooterLoc(tag,footer_pos)
             cur_file.seek(footer_pos)
-            #merge each index tree into one big file
-            #update footer header with the new addresses
+            #Inserção dos identificadores para os arquivos de indexação
             cur_file.write(struct.pack('i',len(self.index_tree[tag].bptree)))
             for bptree in self.index_tree[tag].bptree:
                 cur_file.write(struct.pack('20s',str.encode(bptree['name'],'utf-8')))
@@ -414,6 +506,9 @@ class IndexFileManager(RegisterFileManager):
             for ttree in self.index_tree[tag].ttree:
                 cur_file.write(struct.pack('20s',str.encode(ttree['name'],'utf-8')))
     def deleteRegisters(self,tag,id_array):
+        '''
+        Exclusão de registros para arquivo indexado
+        '''
         if min(id_array) >= self.nextID[tag]:
             self.destroyFile(tag)
             return
@@ -570,7 +665,7 @@ def test_indexfile_1c():
         for row in csv_reader:
             cur_entry = PokemonMove()
             cur_entry.fromCSV(pos,row)
-            #print(cur_entry.move_id)
+            print(cur_entry.move_id)
             fm.dumpRegister('PokemonMove',cur_entry.serialize())
         fm.insertFooter('PokemonMove')
     toc = time.perf_counter()

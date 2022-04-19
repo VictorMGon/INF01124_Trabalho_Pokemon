@@ -6,6 +6,9 @@ def processInt(str):
     return int(str)
 
 class PokemonMove(IndexableRegister):
+    '''
+    Modelagem da conexão da entidade Pokémon e entidade Ataque, registro do tipo indexável
+    '''
     data_fmt = 'ii'
 
     BPTreeAttr = [

@@ -14,6 +14,9 @@ def processType2(str):
     return str
 
 class Pokemon(IndexableRegister):
+    '''
+    Entidade Pokemon no modelo ER, registro do tipo indexável
+    '''
     data_fmt = '64s16s16siiiiiii'
 
     BPTreeAttr = [

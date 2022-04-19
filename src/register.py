@@ -2,6 +2,9 @@ import struct
 import os
 
 class IndexableRegister:
+    '''
+    Registro abstrato do tipo indexável
+    '''
     data_fmt = ''
 
     BPTreeAttr = []

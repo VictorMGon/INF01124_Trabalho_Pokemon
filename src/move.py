@@ -14,6 +14,9 @@ def processType2(str):
     return str
 
 class Move(IndexableRegister):
+    '''
+    Entidade Ataque no modelo ER, registro do tipo indexável
+    '''
     data_fmt = '64s16siii'
 
     BPTreeAttr = [

@@ -18,8 +18,14 @@ cache_size = 200
 COUNTER = 1
 
 class AbstractBlockManager:
+    '''
+    Classe responsável para gerenciar blocos do tipo abstrato
+    '''
     magic_value = b'BMGR'
     def __init__(self,file,offset=0,block_size = 4096):
+        '''
+        Inicializa o gerenciador de blocos utilizando um cache do tipo LRU(Least Recently Used)
+        '''
         self.block_id = 0
         self.deleted_blocks = []
         self.block_size = block_size
@@ -29,40 +35,64 @@ class AbstractBlockManager:
         self.cache = cachetools.LRUCache(maxsize=cache_size*block_size)
         self.checkFile()
     def generateID(self):
+        '''
+        Geração de códigos de identificação para blocos
+        '''
         if self.deleted_blocks:
+            #Se houve blocos deletados, tomar o código de identificação de algum bloco deletado
             unused_id = self.deleted_blocks.pop()
             return unused_id
+        #Caso contrário, gerar um novo
         new_id = self.block_id
         self.block_id += 1
         return new_id
     def delete_block(self,b_id):
-        if b_id == 0:
-            raise RuntimeError('Forbidden deletion: block id is the root id')
+        '''
+        Exclusão de bloco a partir do código de identificação
+        '''
         self.deleted_blocks.append(b_id)
     def write_block(self,b_id,data):
+        '''
+        Escrita de blocos a partir do código de identificação e um conjunto de dados
+        '''
+        #Correção de tamanho
         if len(data)>=self.block_size:
             data = data[:self.block_size]
         elif len(data)<self.block_size:
             data += b'\x00'*(self.block_size-len(data))
+        #Atualizar cache
         old_data = self.cache.get(b_id)
-        if old_data is not None:
-            self.cache[b_id] = data
+        self.cache[b_id] = data
+        #Escrever dados
         self.file.seek(self.offset+self.block_size*b_id)
         self.file.write(data)
     def read_block(self,b_id):
+        '''
+        Leitura de blocos a partir do código de identificação
+        '''
+        #Verificar se está no cache
         data = self.cache.get(b_id)
         if data is not None:
+            #Retornar caso esteja
             return data
         else:
+            #Ler arquivo caso contrário
             self.file.seek(self.offset+self.block_size*b_id)
             data = self.file.read(self.block_size)
             self.cache[b_id] = data
         return data
     def checkFile(self):
+        '''
+        Função responsável para verificar se o arquivo é do tipo gerenciador de blocos
+        '''
         self.file.seek(MAGIC_VALUE_LOC)
         if self.file.read(4) == self.magic_value:
+            #Caso seja, carregar estado
             self.load_state()
     def load_state(self):
+        '''
+        Carregamento do estado
+        '''
         self.file.seek(BLOCK_ID_LOC)
         self.block_id = struct.unpack('i',self.file.read(4))[0]
         self.file.seek(BLOCK_SIZE_LOC)
@@ -75,6 +105,9 @@ class AbstractBlockManager:
             self.deleted_blocks.append(struct.unpack('i',self.file.read(4))[0])
         self.loaded = True
     def save_state(self):
+        '''
+        Armazenamento do estado(persistência)
+        '''
         self.file.seek(MAGIC_VALUE_LOC)
         self.file.write(self.magic_value)
         self.file.seek(BLOCK_ID_LOC)
@@ -89,64 +122,105 @@ class AbstractBlockManager:
             self.file.write(struct.pack('i',self.deleted_blocks[i]))
 
 class OverflowBlockManager(AbstractBlockManager):
+    '''
+    Gerenciador de blocos com suporte de blocos overflow
+    '''
     def write_bytes(self,cur_b_id,data):
+        '''
+        Escrita de bytes, gerando novos blocos dependendo do tamanho
+        '''
+        #0:{overflow_id : 4 bytes}
+        #4:{total_size : 4 bytes}
+        #8:{data: block_size - 8 bytes}
         data = struct.pack('i',-1) + struct.pack('i',-1) + data
         counter = 0
+        #Enquanto o tamanho dos dados é maior que o tamanho de um bloco
         while len(data)>self.block_size:
             if counter >= MAX_SIZE:
                 raise MemoryError('Block size has surpassed maximum write size')
+            #Gerar novo bloco e atualizar o código de overflow
             next_b_id = self.generateID()
             data[:4] = struct.pack('i',next_b_id)
+            #Escrever parcialmente no bloco atual os dados
             self.write_block(cur_b_id,bytes(data[:self.block_size]))
             data = struct.pack('i',-1) + data[self.block_size:]
+            #Avançar para o próximo bloco
             cur_b_id = next_b_id
             counter += 1
+        #Escrever restante no bloco final
         self.write_block(cur_b_id,bytes(data[:self.block_size]))
         counter += 1
         self.file.seek(self.offset+self.block_size*cur_b_id+4)
         self.file.write(struct.pack('i',counter))
     def insert_bytes(self,cur_b_id,data,new_data):
+        '''
+        Inserção de bytes, gerando novos blocos dependendo do tamanho
+        '''
+        #Se o tamanho dos dados mais o tamanho dos novos dados for maior que o tamanho do bloco
         if len(data)+len(new_data)>self.block_size:
+            #Gerar novo bloco e inserir os dados atuais no bloco
             next_b_id = self.generateID()
             data[:4] = struct.pack('i',next_b_id)
             self.write_block(cur_b_id,bytes(data))
+            #Zerar dados
             data = bytearray()
             data += struct.pack('i',-1)
             cur_b_id = next_b_id
+        #Incluir novos dados
         data += new_data
         return cur_b_id,data
     def read_bytes(self,cur_b_id):
+        '''
+        Leitura de bytes, carregando adicionalmente os blocos de overflow se houver
+        '''
+        #Ler o bloco inicial
         data = self.read_block(cur_b_id)
         total_size = struct.unpack('i',data[4:8])
         if total_size >= MAX_SIZE:
             raise MemoryError('Block size has surpassed maximum read size')
         elif total_size > 1:
+            #Se há overflow, obter próximo bloco
             next_b_id = struct.unpack('i',data[0:4])
             counter = 0
             while counter<total_size:
+                #Adicionar dados até o último bloco overflow
                 new_data = self.read_block(next_b_id)
                 data += new_data
                 next_b_id = struct.unpack('i',new_data[0:4])
                 counter += 1
         else:
+            #Caso contrário, retornar os dados da primeira leitura
             return data
     def pop_bytes(self,next_b_id,data,num):
+        '''
+        Obter N bytes, carregando do próximo bloco se houver overflow
+        '''
         if len(data)<num:
+            #Ler do próximo bloco caso nossa pilha não tenha o número de bytes pedido
             next_block_data = self.read_block(next_b_id)
             next_b_id = struct.unpack('i',bytes(next_block_data[:4]))[0]
             data = bytearray()
             data = next_block_data[4:]
         return next_b_id, data[:num], data[num:]
     def delete_blocks(self,b_id):
+        '''
+        Deleção do bloco e blocos overflow associados
+        '''
         cur_b_id = b_id
+        #Deletar bloco atual
         self.delete_block(cur_b_id)
         data = bytearray(self.read_block(cur_b_id))
         if len(data)>0:
+            #Enquanto há um código de overflow válido
             while bytes(data[:4]) != b'\xFF\xFF\xFF\xFF':
                 next_b_id = struct.unpack('i',bytes(data[:4]))[0]
                 data = bytearray(self.read_block(next_b_id))
+                #Deletar próximo bloco
                 self.delete_block(next_b_id)
     def delete_overflow_blocks(self,b_id):
+        '''
+        Deleção dos blocos overflow
+        '''
         cur_b_id = b_id
         data = bytearray(self.read_block(cur_b_id))
         if len(data)>0 and bytes(data[:4]) != b'\xFF\xFF\xFF\xFF':
@@ -156,25 +230,43 @@ class OverflowBlockManager(AbstractBlockManager):
 MAX_SIZE = 20000
 
 class BPlusBlockManager(OverflowBlockManager):
-    #0:{overflow_id : 4 bytes}
-    #4:{total_size : 4 bytes}
-    #8:{leaf : 1 byte}
-    #9:{next : 4 bytes}
-    #13:{previous : 4 bytes}
-    #17:{key_count : 4 bytes}
-    #21:{first_key : 4 bytes}
-    #{second_key : 4 bytes}
-    #...
-    #{first_value : variable}
-    #{second_value : variable}
-    #...
+    '''
+    Gerenciador de blocos para árvore B+
+    '''
+    def delete_block(self,b_id):
+        if b_id == 0:
+            #Nunca deve acontecer, mas caso aconteça, temos um problema
+            raise RuntimeError('Forbidden deletion: block id is the root id')
+        super().delete_block(b_id)
     def delete_node(self,node):
+        '''
+        Exclusão de nodos
+        '''
         cur_b_id = node.block_id
         self.delete_blocks(cur_b_id)
     def delete_overflow_nodes(self,node):
+        '''
+        Exclusão de blocos de overflow do nodo associado
+        '''
         cur_b_id = node.block_id
         self.delete_overflow_blocks(cur_b_id)
     def write_node(self,node,delete_overflow=True):
+        '''
+        Serialização e escrita de nodos
+        '''
+        #0:{overflow_id : 4 bytes}
+        #4:{total_size : 4 bytes}
+        #8:{leaf : 1 byte}
+        #9:{next : 4 bytes}
+        #13:{previous : 4 bytes}
+        #17:{key_count : 4 bytes}
+        #21:{value_count : 4 bytes}
+        #25:{first_key : 4 bytes}
+        #{second_key : 4 bytes}
+        #...
+        #{first_value : variable}
+        #{second_value : variable}
+        #...
         #tic = time.perf_counter()
         if delete_overflow:
             self.delete_overflow_nodes(node)
@@ -221,6 +313,9 @@ class BPlusBlockManager(OverflowBlockManager):
         #toc = time.perf_counter()
         #print('write_node: ',toc-tic)
     def read_node(self,b_id):
+        '''
+        Deserialização e leitura de nodos
+        '''
         data = bytearray(self.read_block(b_id))
         next_b_id = struct.unpack('i',bytes(data[:4]))[0]
         total_size = struct.unpack('i',bytes(data[4:8]))[0]
@@ -264,6 +359,9 @@ class BPlusBlockManager(OverflowBlockManager):
         node.block_id = b_id
         return node
     def setOrder(self,order):
+        '''
+        Modificar ordem do gerenciador de blocos para árvore B+
+        '''
         self.order = order
     def load_state(self):
         super().load_state()
@@ -275,6 +373,9 @@ class BPlusBlockManager(OverflowBlockManager):
         self.file.write(struct.pack('i',self.order))
 
 class TrieBlockManager(OverflowBlockManager):
+    '''
+    Gerenciador de blocos para árvore trie
+    '''
     def write_node(self,b_id,node):
         #TODO
         pass
@@ -428,6 +529,6 @@ if __name__ == '__main__':
     #test_bplus2()
     #test_bplus3()
     #test_bplus4()
-    test_bplus5()
+    #test_bplus5()
     #test_bplus6()
     pass
