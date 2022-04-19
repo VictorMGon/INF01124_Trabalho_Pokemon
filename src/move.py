@@ -42,8 +42,8 @@ class Move(IndexableRegister):
         self.accuracy = processInt(data[pos[4]])
     def fromBytes(self,data_bytes):
         data = struct.unpack(self.data_fmt,data_bytes)
-        self.name = data[0].decode('utf-8')
-        self.type = data[1].decode('utf-8')
+        self.name = data[0].decode('utf-8').rstrip('\0')
+        self.type = data[1].decode('utf-8').rstrip('\0')
         self.pp = data[2]
         self.power = data[3]
         self.accuracy = data[4]

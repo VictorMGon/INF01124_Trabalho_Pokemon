@@ -58,9 +58,9 @@ class Pokemon(IndexableRegister):
         self.speed = processInt(data[pos[9]])
     def fromBytes(self,data_bytes):
         data = struct.unpack(self.data_fmt,data_bytes)
-        self.name = data[0].decode('utf-8')
-        self.type1 = data[1].decode('utf-8')
-        self.type2 = data[2].decode('utf-8')
+        self.name = data[0].decode('utf-8').rstrip('\0')
+        self.type1 = data[1].decode('utf-8').rstrip('\0')
+        self.type2 = data[2].decode('utf-8').rstrip('\0')
         self.pokedex_id = data[3]
         self.hp = data[4]
         self.attack = data[5]

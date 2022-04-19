@@ -4,7 +4,7 @@
 #-bug fixes
 #-on disk operation
 #-next and previous node(linked list)
-
+import time
 
 from blockmanager import *
 from filemanager import *
@@ -97,8 +97,8 @@ class BNode(object):
         self.previous = None
         if self.bm:
             self.values = [left.block_id,right.block_id]
-            self.bm.write_node(left)
-            self.bm.write_node(right)
+            self.bm.write_node(left,delete_overflow=False)
+            self.bm.write_node(right,delete_overflow=False)
             self.bm.write_node(self)
 
     def is_full(self):
@@ -180,9 +180,12 @@ class BPlusTree(object):
         parent = None
         child = self.root
         # Traverse tree until leaf node is reached.
+        #tic = time.perf_counter()
         while not child.leaf:
             parent = child
             child, index = self._find(child, key)
+        #toc = time.perf_counter()
+        #print('_find:',toc-tic)
         child.add(key, value)
         # If the leaf node is full, split the leaf node into two.
         if child.is_full():

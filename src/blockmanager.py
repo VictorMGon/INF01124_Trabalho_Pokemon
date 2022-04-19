@@ -2,9 +2,10 @@ import struct
 import pickle
 import os
 import cachetools
+import time
 from filemanager import *
 from bplustree import *
-#from trietree import *
+from trietree import *
 
 MAGIC_VALUE_LOC = 4
 BLOCK_ID_LOC = 8
@@ -13,6 +14,8 @@ OFFSET_LOC = 16
 ORDER_LOC = 20
 DELETED_LOC = 24
 cache_size = 200
+
+COUNTER = 1
 
 class AbstractBlockManager:
     magic_value = b'BMGR'
@@ -28,12 +31,13 @@ class AbstractBlockManager:
     def generateID(self):
         if self.deleted_blocks:
             unused_id = self.deleted_blocks.pop()
-            #print(unused_id)
             return unused_id
         new_id = self.block_id
         self.block_id += 1
         return new_id
     def delete_block(self,b_id):
+        if b_id == 0:
+            raise RuntimeError('Forbidden deletion: block id is the root id')
         self.deleted_blocks.append(b_id)
     def write_block(self,b_id,data):
         if len(data)>=self.block_size:
@@ -110,10 +114,8 @@ class OverflowBlockManager(AbstractBlockManager):
             data += struct.pack('i',-1)
             cur_b_id = next_b_id
         data += new_data
-        #print(data[:8])
         return cur_b_id,data
     def read_bytes(self,cur_b_id):
-        #data = struct.pack('i',-1) + struct.pack('i',-1) + data
         data = self.read_block(cur_b_id)
         total_size = struct.unpack('i',data[4:8])
         if total_size >= MAX_SIZE:
@@ -131,7 +133,6 @@ class OverflowBlockManager(AbstractBlockManager):
     def pop_bytes(self,next_b_id,data,num):
         if len(data)<num:
             next_block_data = self.read_block(next_b_id)
-            #print(bytes(next_block_data[:4]))
             next_b_id = struct.unpack('i',bytes(next_block_data[:4]))[0]
             data = bytearray()
             data = next_block_data[4:]
@@ -174,6 +175,7 @@ class BPlusBlockManager(OverflowBlockManager):
         cur_b_id = node.block_id
         self.delete_overflow_blocks(cur_b_id)
     def write_node(self,node,delete_overflow=True):
+        #tic = time.perf_counter()
         if delete_overflow:
             self.delete_overflow_nodes(node)
         cur_b_id = node.block_id
@@ -201,7 +203,6 @@ class BPlusBlockManager(OverflowBlockManager):
             for i in range(len(node.values)):
                 if len(data)+4>self.block_size:
                     counter += 1
-                #print(data[:8])
                 cur_b_id, data = self.insert_bytes(cur_b_id,data,struct.pack('i',len(node.values[i])))
                 for j in range(len(node.values[i])):
                     if len(data)+4>self.block_size:
@@ -211,14 +212,14 @@ class BPlusBlockManager(OverflowBlockManager):
             for i in range(len(node.values)):
                 if len(data)+4>self.block_size:
                     counter += 1
-                #print(node.values[i])
                 cur_b_id, data = self.insert_bytes(cur_b_id,data,struct.pack('i',node.values[i]))
         if len(data)<self.block_size:
             data += b'\x00'*(self.block_size-len(data))
-        #print(data[:16])
         self.write_block(cur_b_id,bytes(data))
         self.file.seek(self.offset+self.block_size*node.block_id+4)
         self.file.write(struct.pack('i',counter))
+        #toc = time.perf_counter()
+        #print('write_node: ',toc-tic)
     def read_node(self,b_id):
         data = bytearray(self.read_block(b_id))
         next_b_id = struct.unpack('i',bytes(data[:4]))[0]
@@ -236,18 +237,18 @@ class BPlusBlockManager(OverflowBlockManager):
             keys.append(key)
         values = []
         if leaf:
-            #print('beep1:',next_b_id,'count:',value_count)
+            #tic = time.perf_counter()
             for i in range(value_count):
                 next_b_id, new_bytes, data = self.pop_bytes(next_b_id,data,4)
                 sub_value_count = struct.unpack('i',new_bytes)[0]
                 sub_values = []
-                #print('beep2:',next_b_id,'count:',sub_value_count)
                 for j in range(sub_value_count):
                     next_b_id, new_bytes, data = self.pop_bytes(next_b_id,data,4)
                     value = struct.unpack('i',new_bytes)[0]
-                    #print(value)
                     sub_values.append(value)
                 values.append(sub_values)
+            #toc = time.perf_counter()
+            #print('read_node: ',toc-tic,'\n','value_count:',value_count,'\n','sub_value_count:',sub_value_count)
         else:
             for i in range(value_count):
                 next_b_id, new_bytes, data = self.pop_bytes(next_b_id,data,4)
@@ -388,7 +389,7 @@ def test_bplus5():
 
     node = BNode(order)
     node.keys = [i+1 for i in range(600)]
-    node.values = [[i+1 for i in range(j,j+2)] for j in range(601)]
+    node.values = [[i+1 for i in range(j,j+100)] for j in range(1201)]
     node.leaf = True
     node.bm = bmgr
     node.next = None
@@ -400,7 +401,7 @@ def test_bplus5():
 
     read_node = bmgr.read_node(id)
 
-    print(len(read_node.keys),'|',read_node.keys)
+    #print(len(read_node.keys),'|',read_node.keys)
     print(len(read_node.values),'|',read_node.values)
 
     bmgr.save_state()
@@ -427,6 +428,6 @@ if __name__ == '__main__':
     #test_bplus2()
     #test_bplus3()
     #test_bplus4()
-    #test_bplus5()
+    test_bplus5()
     #test_bplus6()
     pass

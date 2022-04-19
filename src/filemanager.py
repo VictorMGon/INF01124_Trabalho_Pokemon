@@ -1,6 +1,7 @@
 import struct
 import os
 import csv
+import time
 from pokemon import *
 from move import *
 from pkmnmove import *
@@ -30,7 +31,6 @@ class AbstractFileManager:
         f = open(name,'w+b')
         if tag in self.files:
             raise RuntimeError(FILE_ALREADY_EXISTS)
-            return
         else:
             self.files[tag] = f
         self.prepareHeader(tag)
@@ -40,10 +40,8 @@ class AbstractFileManager:
         magic_data = f.read(4)
         if tag in self.files:
             raise RuntimeError(FILE_ALREADY_EXISTS)
-            return
         elif magic_data != self.magic_value:
             raise RuntimeError(FILE_NOT_COMPATIBLE+": ",magic_data)
-            return
         else:
             self.files[tag] = f
         return 1
@@ -70,7 +68,6 @@ class AbstractFileManager:
             return self.files[tag]
         except KeyError:
             raise RuntimeError(FILE_DOESNT_EXIST)
-            return
     def destroyFile(self,tag):
         try:
             self.files[tag].close()
@@ -78,7 +75,6 @@ class AbstractFileManager:
             return 1
         except KeyError:
             raise RuntimeError(FILE_DOESNT_EXIST)
-            return
 
 FOOTER_LOC = 4
 NEXT_REGISTER = 8
@@ -146,7 +142,6 @@ class RegisterFileManager(AbstractFileManager):
             return 1
         except KeyError:
             raise RuntimeError(FILE_DOESNT_EXIST)
-            return
     def save_state(self,tag):
         cur_file = self.getFile(tag)
         if cur_file:
@@ -312,7 +307,6 @@ class IndexFileManager(RegisterFileManager):
             return 1
         except KeyError:
             raise RuntimeError(FILE_DOESNT_EXIST)
-            return
     def loadFile(self,tag,name,type):
         res = super().loadFile(tag,name)
         if res:
@@ -357,6 +351,7 @@ class IndexFileManager(RegisterFileManager):
     def dumpRegister(self,tag,data):
         cur_file = self.getFile(tag)
         if cur_file:
+            #tic = time.perf_counter()
             cur_pos = self.getNextRegister(tag)
             if tag in self.last_register:
                 cur_file.seek(self.last_register[tag]+4)
@@ -372,15 +367,26 @@ class IndexFileManager(RegisterFileManager):
             cur_file.write(cur_id)
             cur_file.write(data)
             self.updateNextRegister(tag,cur_file.tell())
+            #toc = time.perf_counter()
+            #print('Register write: ',toc-tic)
             #insert each [attribute(key), file offset(value)] in the associated index tree
+            #tic = time.perf_counter()
+            #tic_i = time.perf_counter()
             self.index_tree[tag].retrieve_bptree(0).insert(struct.unpack('i',cur_id)[0],cur_pos)
+            #toc_i = time.perf_counter()
+            #print('Primary key insertion: ',toc_i-tic_i)
             idx_register = self.index_tree[tag].type()
             idx_register.fromBytes(data)
             bp_values, t_values = idx_register.indexEntries()
             for id,val in enumerate(bp_values):
+                #tic_i = time.perf_counter()
                 self.index_tree[tag].retrieve_bptree(id+1).insert(val,cur_pos)
+                #toc_i = time.perf_counter()
+                #print(self.index_tree[tag].retrieve_bptree_name(id+1)+' insertion: ',toc_i-tic_i)
             for id,val in enumerate(t_values):
                 self.index_tree[tag].retrieve_ttree(id).insert(val,cur_pos)
+            #toc = time.perf_counter()
+            #print('Index tree insertion: ',toc-tic)
     def loadRegister(self,tag,offset):
         cur_file = self.getFile(tag)
         idx_register = self.index_tree[tag].type()
@@ -513,7 +519,7 @@ def test_indexfile_1a():
 
     fm = IndexFileManager()
     fm.createFile('Pokemon','pokemon.dat',Pokemon)
-
+    tic = time.perf_counter()
     with open('pokedex.csv',newline='',encoding='utf-8') as csvfile:
         csv_reader = csv.reader(csvfile, delimiter=',', quotechar='\"')
         next(csv_reader)
@@ -522,11 +528,9 @@ def test_indexfile_1a():
             cur_pokemon.fromCSV(pos,row)
             fm.dumpRegister('Pokemon',cur_pokemon.serialize())
         fm.insertFooter('Pokemon')
-
+    toc = time.perf_counter()
+    print(toc-tic)
     fm.save_state('Pokemon')
-
-    #print(len(fm.index_tree['Pokemon'].retrieve_bptree(7).root.keys),'|',fm.index_tree['Pokemon'].retrieve_bptree(7).root.keys)
-    #print(len(fm.index_tree['Pokemon'].retrieve_bptree(7).root.values),'|',fm.index_tree['Pokemon'].retrieve_bptree(7).root.values)
 
     print(fm.index_tree['Pokemon'].retrieve_bptree(7).retrieve(-50))
 
@@ -537,7 +541,7 @@ def test_indexfile_1b():
 
     fm = IndexFileManager()
     fm.createFile('Move','move.dat',Move)
-
+    tic = time.perf_counter()
     with open('moves.csv',newline='',encoding='utf-8') as csvfile:
         csv_reader = csv.reader(csvfile, delimiter=',', quotechar='\"')
         next(csv_reader)
@@ -546,7 +550,8 @@ def test_indexfile_1b():
             cur_move.fromCSV(pos,row)
             fm.dumpRegister('Move',cur_move.serialize())
         fm.insertFooter('Move')
-
+    toc = time.perf_counter()
+    print(toc-tic)
     fm.save_state('Move')
 
     print(fm.index_tree['Move'].retrieve_bptree(0).retrieve(-50))
@@ -558,17 +563,18 @@ def test_indexfile_1c():
 
     fm = IndexFileManager()
     fm.createFile('PokemonMove','pkmnmove.dat',PokemonMove)
-
+    tic = time.perf_counter()
     with open('movespkmn.csv',newline='',encoding='utf-8') as csvfile:
         csv_reader = csv.reader(csvfile, delimiter=',', quotechar='\"')
         next(csv_reader)
         for row in csv_reader:
             cur_entry = PokemonMove()
             cur_entry.fromCSV(pos,row)
-            print(cur_entry.move_id)
+            #print(cur_entry.move_id)
             fm.dumpRegister('PokemonMove',cur_entry.serialize())
         fm.insertFooter('PokemonMove')
-
+    toc = time.perf_counter()
+    print(toc-tic)
     fm.save_state('PokemonMove')
 
     print(fm.index_tree['PokemonMove'].retrieve_bptree(0).retrieve(-50))
