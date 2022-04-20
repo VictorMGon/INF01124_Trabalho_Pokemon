@@ -196,8 +196,8 @@ class BPlusTree(object):
             if parent and not parent.is_full():
                 self._merge(parent, child, index)
 
-    def retrieve(self, key):
-        """Returns a value for a given key, and None if the key does not exist."""
+    def retrieve_node(self, key):
+        """Returns a node for a given key"""
         child = self.root
         counter = 0
         while not child.leaf:
@@ -207,10 +207,41 @@ class BPlusTree(object):
 
         for i, item in enumerate(child.keys):
             if key <= item:
-                return child.values[i]
-                #return child
+                return child, i
 
-        return child.values[i]
+        return child, i
+
+    def retrieve(self, key):
+        """Returns a value for a given key"""
+        node, index = self.retrieve_node(key)
+        return node.values[index]
+
+    def range_retrieve(self, low, high, normal = True):
+        if normal:
+            cur_node, cur_i = self.retrieve_node(low)
+            offsets_list = []
+            while cur_i < len(cur_node.values):
+                if low <= cur_node.keys[cur_i] <= high:
+                    offsets_list += cur_node.values[cur_i]
+                else:
+                    return offsets_list
+                cur_i += 1
+                if cur_i == len(cur_node.values) and cur_node.next != -1:
+                    cur_node = self.bm.read_node(cur_node.next)
+                    cur_i = 0
+        else:
+            cur_node, cur_i = self.retrieve_node(high)
+            offsets_list = []
+            while 0<=cur_i:
+                if low <= cur_node.keys[cur_i] <= high:
+                    offsets_list += cur_node.values[cur_i]
+                else:
+                    return offsets_list
+                cur_i -= 1
+                if cur_i == -1 and cur_node.previous != -1:
+                    cur_node = self.bm.read_node(cur_node.previous)
+                    cur_i = len(cur_node.values)
+        return offsets_list
 
     def show(self):
         """Prints the keys at each level."""

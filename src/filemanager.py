@@ -311,7 +311,7 @@ class IndexCollection:
             self.retrieve_ttree(id).save_state()
 
 
-BPTREE_ORDER = 1000+1
+BPTREE_ORDER = 200
 
 class IndexFileManager(RegisterFileManager):
     '''
@@ -344,17 +344,17 @@ class IndexFileManager(RegisterFileManager):
         ttree = []
         index_name = 'BPID'
         afm.createFile(index_name,tag+'_'+index_name+'.idx')
-        bmg_index = BPlusBlockManager(afm.getFile(index_name),offset=8192,block_size=8192)
+        bmg_index = BPlusBlockManager(afm.getFile(index_name),offset=4096,block_size=4096)
         bp_index = BPlusTree(BPTREE_ORDER,bmg_index)
         bptree.append({'name':index_name,'tree':bp_index})
         for id,index_name in enumerate(type.BPTreeAttr):
             afm.createFile(index_name,tag+'_'+index_name+'.idx')
-            bmg_index = BPlusBlockManager(afm.getFile(index_name),offset=8192,block_size=8192)
+            bmg_index = BPlusBlockManager(afm.getFile(index_name),offset=4096,block_size=4096)
             bp_index = BPlusTree(BPTREE_ORDER,bmg_index)
             bptree.append({'name':index_name,'tree':bp_index})
         for id,index_name in enumerate(type.TTreeAttr):
             afm.createFile(index_name,tag+'_'+index_name+'.idx')
-            tmg_index = TrieBlockManager(afm.getFile(index_name),offset=8192,block_size=8192)
+            tmg_index = TrieBlockManager(afm.getFile(index_name),offset=4096,block_size=4096)
             t_index = TrieTree(tmg_index)
             bptree.append({'name':index_name,'tree':t_index})
         new_index = IndexCollection(type,afm,bptree,ttree)
@@ -610,7 +610,7 @@ def test_registerfile_3():
     fm.destroyFile('testfile')
 
 def test_indexfile_1a():
-    pos = [2,9,10,1,18,19,20,21,22,23]
+    pos = [2,9,10,1,18,19,20,21,22,23,5]
 
     fm = IndexFileManager()
     fm.createFile('Pokemon','pokemon.dat',Pokemon)
@@ -632,7 +632,7 @@ def test_indexfile_1a():
     fm.destroyFile('Pokemon')
 
 def test_indexfile_1b():
-    pos = [1,2,4,5,6]
+    pos = [1,2,4,5,6,7]
 
     fm = IndexFileManager()
     fm.createFile('Move','move.dat',Move)
@@ -704,7 +704,7 @@ if __name__ == '__main__':
     #test_registerfile_2()
     #test_registerfile_3()
     #test_indexfile_1a()
-    #test_indexfile_1b()
+    test_indexfile_1b()
     #test_indexfile_1c()
     #test_indexfile_2()
     #test_indexfile_3()
