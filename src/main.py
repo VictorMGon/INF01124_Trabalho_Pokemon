@@ -37,20 +37,6 @@ pokemon_attrs_num = {'id':POKEMON_ID,'dexid':POKEMON_DEXID,'hp':POKEMON_HP,'atk'
 
 move_attrs_num = {'id':MOVE_ID,'pp':MOVE_PP,'pow':MOVE_POW,'acc':MOVE_ACC,'gen':MOVE_GEN}
 
-class Query:
-    def __init__(self,var,low,high,op):
-        self.var = var
-        self.low = low
-        self.high = high
-        self.op = op
-        self.verifyOp()
-    def verifyOp(self):
-        print('test')
-        return {'running':True}
-    def doOp(fm):
-        #do stuff
-        pass
-
 def processInt(x):
     try:
         return int(x)
@@ -105,7 +91,6 @@ def pesquisaFortes(args):
         fortes = fortes_elementar[type]
         offsets = []
         for forte in fortes:
-            print(forte,':',Type2Int(forte))
             offsets += fm.index_tree['Pokemon'].retrieve_bptree(POKEMON_TYPE1).retrieve(Type2Int(forte))
         if len(args) >= 3 and args[2].isdigit():
             random.shuffle(offsets)
