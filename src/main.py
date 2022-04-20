@@ -30,10 +30,12 @@ PKMOVE_DEXID = 2
 EQ_QUERY = 0
 RANGE_QUERY = 1
 
-pokemon_attrs = {'id':POKEMON_ID,'dexid':POKEMON_DEXID,'hp':POKEMON_HP,'atk':POKEMON_ATK,
-                 'def':POKEMON_DEF,'spatk':POKEMON_SPATK,'spdef':POKEMON_SPDEF,'spd':POKEMON_SPD,'gen':POKEMON_GEN}
+pokemon_attrs_str = {'type1':POKEMON_TYPE1, 'type2':POKEMON_TYPE2}
 
-move_attrs = {'id':MOVE_ID,'pp':MOVE_PP,'pow':MOVE_POW,'acc':MOVE_ACC,'gen':MOVE_GEN}
+pokemon_attrs_num = {'id':POKEMON_ID,'dexid':POKEMON_DEXID,'hp':POKEMON_HP,'atk':POKEMON_ATK,
+                     'def':POKEMON_DEF,'spatk':POKEMON_SPATK,'spdef':POKEMON_SPDEF,'spd':POKEMON_SPD,'gen':POKEMON_GEN}
+
+move_attrs_num = {'id':MOVE_ID,'pp':MOVE_PP,'pow':MOVE_POW,'acc':MOVE_ACC,'gen':MOVE_GEN}
 
 class Query:
     def __init__(self,var,low,high,op):
@@ -82,7 +84,7 @@ def pesquisaGen(args):
         fm = args[0]
         gen = int(args[1])
         offsets = fm.index_tree['Pokemon'].retrieve_bptree(POKEMON_GEN).retrieve(gen)
-        if len(args) == 3 and args[2].isdigit():
+        if len(args) >= 3 and args[2].isdigit():
             random.shuffle(offsets)
             limit = int(args[2])
             offsets = offsets[:limit]
@@ -105,7 +107,7 @@ def pesquisaFortes(args):
         for forte in fortes:
             print(forte,':',Type2Int(forte))
             offsets += fm.index_tree['Pokemon'].retrieve_bptree(POKEMON_TYPE1).retrieve(Type2Int(forte))
-        if len(args) == 3 and args[2].isdigit():
+        if len(args) >= 3 and args[2].isdigit():
             random.shuffle(offsets)
             limit = int(args[2])
             offsets = offsets[:limit]
@@ -127,9 +129,36 @@ def pesquisaFracos(args):
         offsets = []
         for fraco in fracos:
             offsets += fm.index_tree['Pokemon'].retrieve_bptree(POKEMON_TYPE1).retrieve(Type2Int(fraco))
-        if len(args) == 3 and args[2].isdigit():
+        if len(args) >= 3 and args[2].isdigit():
             random.shuffle(offsets)
             limit = int(args[2])
+            offsets = offsets[:limit]
+        Pokemon = [fm.loadRegister('Pokemon',offset)['register'] for offset in offsets]
+        for pokemon in Pokemon:
+            print(pokemon,'\n')
+    else:
+        print("(*) Comando não suportado")
+    return {'running':True}
+
+def pesquisaPokemon(args):
+    if len(args) >= 3:
+        fm = args[0]
+        attr = normalizeStr(args[1])
+        if attr not in pokemon_attrs_str and attr not in pokemon_attrs_num:
+            print("(*) Atributo não reconhecido")
+            return {'running':True}
+        elif normalizeStr(args[2]) in TYPES and attr in pokemon_attrs_str:
+            attr = pokemon_attrs_str[attr]
+            key = Type2Int(normalizeStr(args[2]))
+        elif args[2].isdigit() and attr in pokemon_attrs_num:
+            attr = pokemon_attrs_num[attr]
+            key = int(args[2])
+        else:
+            print("(*) Valor incompatível")
+            return {'running':True}
+        offsets = fm.index_tree['Pokemon'].retrieve_bptree(attr).retrieve(key)
+        if len(args) >= 4 and args[3].isdigit():
+            limit = int(args[3])
             offsets = offsets[:limit]
         Pokemon = [fm.loadRegister('Pokemon',offset)['register'] for offset in offsets]
         for pokemon in Pokemon:
@@ -142,11 +171,11 @@ def classificaPokemon(args):
     if len(args) >= 4 and args[2].isdigit() and args[3].isdigit():
         fm = args[0]
         attr = normalizeStr(args[1])
-        if attr not in pokemon_attrs:
+        if attr not in pokemon_attrs_num:
             print("(*) Atributo não reconhecido")
             return {'running':True}
         else:
-            attr = pokemon_attrs[attr]
+            attr = pokemon_attrs_num[attr]
         low = int(args[2])
         high = int(args[3])
         ordem = True
@@ -157,7 +186,7 @@ def classificaPokemon(args):
             except:
                 pass
         offsets = fm.index_tree['Pokemon'].retrieve_bptree(attr).range_retrieve(low,high,ordem)
-        if len(args) == 6 and args[5].isdigit():
+        if len(args) >= 6 and args[5].isdigit():
             limit = int(args[5])
             offsets = offsets[:limit]
         Pokemon = [fm.loadRegister('Pokemon',offset)['register'] for offset in offsets]
@@ -186,7 +215,7 @@ def classificaAtaque(args):
             except:
                 pass
         offsets = fm.index_tree['Move'].retrieve_bptree(attr).range_retrieve(low,high,ordem)
-        if len(args) == 6 and args[5].isdigit():
+        if len(args) >= 6 and args[5].isdigit():
             limit = int(args[5])
             offsets = offsets[:limit]
         Moves = [fm.loadRegister('Move',offset)['register'] for offset in offsets]
@@ -199,13 +228,8 @@ def classificaAtaque(args):
 def listarAtaques(args):
     if len(args) == 2 and args[1].isdigit():
         fm = args[0]
-        poke_id = int(args[1])
-        pokemon_offsets = fm.index_tree['Pokemon'].retrieve_bptree(POKEMON_ID).retrieve(poke_id)
-        Pokemon = [fm.loadRegister('Pokemon',offset)['register'] for offset in pokemon_offsets]
-        pokedex_ids = [pokemon.pokedex_id for pokemon in Pokemon]
-        pkmove_offsets = []
-        for pokedex_id in pokedex_ids:
-            pkmove_offsets += fm.index_tree['PokemonMove'].retrieve_bptree(PKMOVE_DEXID).retrieve(pokedex_id)
+        pokedex_id = int(args[1])
+        pkmove_offsets = fm.index_tree['PokemonMove'].retrieve_bptree(PKMOVE_DEXID).retrieve(pokedex_id)
         PKmoves = [fm.loadRegister('PokemonMove',offset)['register'] for offset in pkmove_offsets]
         move_ids = [pkmove.move_id for pkmove in PKmoves]
         move_offsets = []
@@ -224,6 +248,7 @@ def input_command():
                'pesquisaGen':pesquisaGen,
                'pesquisaFortes':pesquisaFortes,
                'pesquisaFracos':pesquisaFracos,
+               'pesquisaPokemon':pesquisaPokemon,
                'classificaPokemon':classificaPokemon,
                'classificaAtaque':classificaAtaque,
                'listarAtaques':listarAtaques}

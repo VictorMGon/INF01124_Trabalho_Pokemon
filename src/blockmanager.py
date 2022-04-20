@@ -204,7 +204,7 @@ class OverflowBlockManager(AbstractBlockManager):
         return next_b_id, data[:num], data[num:]
     def delete_blocks(self,b_id):
         '''
-        Deleção do bloco e blocos overflow associados
+        Exclusão do bloco e blocos overflow associados
         '''
         cur_b_id = b_id
         #Deletar bloco atual
@@ -219,7 +219,7 @@ class OverflowBlockManager(AbstractBlockManager):
                 self.delete_block(next_b_id)
     def delete_overflow_blocks(self,b_id):
         '''
-        Deleção dos blocos overflow
+        Exclusão dos blocos overflow
         '''
         cur_b_id = b_id
         data = bytearray(self.read_block(cur_b_id))
