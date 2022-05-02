@@ -2,10 +2,10 @@ import struct
 import os
 import csv
 import time
-from pokemon import *
-from move import *
-from pkmnmove import *
-from blockmanager import *
+from src.pokemon import *
+from src.move import *
+from src.pkmnmove import *
+from src.blockmanager import *
 
 FILE_DOESNT_EXIST = "File doesn't exist"
 FILE_ALREADY_EXISTS = "File already exists"
@@ -313,6 +313,8 @@ class IndexCollection:
 
 BPTREE_ORDER = 200
 
+out_dir = 'out'
+
 class IndexFileManager(RegisterFileManager):
     '''
     Gerenciador de arquivos binários seriais do tipo registro com arquivos de índice
@@ -343,17 +345,18 @@ class IndexFileManager(RegisterFileManager):
         bptree = []
         ttree = []
         index_name = 'BPID'
-        afm.createFile(index_name,tag+'_'+index_name+'.idx')
+        os.makedirs(out_dir, exist_ok=True)
+        afm.createFile(index_name,out_dir+'/'+tag+'_'+index_name+'.idx')
         bmg_index = BPlusBlockManager(afm.getFile(index_name),offset=4096,block_size=4096)
         bp_index = BPlusTree(BPTREE_ORDER,bmg_index)
         bptree.append({'name':index_name,'tree':bp_index})
         for id,index_name in enumerate(type.BPTreeAttr):
-            afm.createFile(index_name,tag+'_'+index_name+'.idx')
+            afm.createFile(index_name,out_dir+'/'+tag+'_'+index_name+'.idx')
             bmg_index = BPlusBlockManager(afm.getFile(index_name),offset=4096,block_size=4096)
             bp_index = BPlusTree(BPTREE_ORDER,bmg_index)
             bptree.append({'name':index_name,'tree':bp_index})
         for id,index_name in enumerate(type.TTreeAttr):
-            afm.createFile(index_name,tag+'_'+index_name+'.idx')
+            afm.createFile(index_name,out_dir+'/'+tag+'_'+index_name+'.idx')
             tmg_index = TrieBlockManager(afm.getFile(index_name),offset=4096,block_size=4096)
             t_index = TrieTree(tmg_index)
             bptree.append({'name':index_name,'tree':t_index})
@@ -396,17 +399,23 @@ class IndexFileManager(RegisterFileManager):
             bptree_len = struct.unpack('i',cur_file.read(4))[0]
             for i in range(bptree_len):
                 index_name = bytes.decode(struct.unpack('20s',cur_file.read(20))[0],'utf-8').rstrip('\0')
-                afm.loadFile(index_name,tag+'_'+index_name+'.idx')
-                bmg_index = BPlusBlockManager(afm.getFile(index_name))
-                bp_index = BPlusTree(bmgr=bmg_index, createNew=False)
-                bptree.append({'name':index_name,'tree':bp_index})
+                if os.path.exists(out_dir+'/'+tag+'_'+index_name+'.idx'):
+                    afm.loadFile(index_name,out_dir+'/'+tag+'_'+index_name+'.idx')
+                    bmg_index = BPlusBlockManager(afm.getFile(index_name))
+                    bp_index = BPlusTree(bmgr=bmg_index, createNew=False)
+                    bptree.append({'name':index_name,'tree':bp_index})
+                else:
+                    raise RuntimeError(index_name+' doesn\'t exist')
             ttree_len = struct.unpack('i',cur_file.read(4))[0]
             for i in range(ttree_len):
                 index_name = bytes.decode(struct.unpack('20s',cur_file.read(20))[0],'utf-8').rstrip('\0')
-                afm.loadFile(index_name,tag+'_'+index_name+'.idx')
-                tmg_index = TrieBlockManager(afm.getFile(index_name))
-                t_index = TrieTree(bmgr=tmg_index, createNew=False)
-                ttree.append({'name':index_name,'tree':bp_index})
+                if os.path.exists(out_dir+'/'+tag+'_'+index_name+'.idx'):
+                    afm.loadFile(index_name,out_dir+'/'+tag+'_'+index_name+'.idx')
+                    tmg_index = TrieBlockManager(afm.getFile(index_name))
+                    t_index = TrieTree(bmgr=tmg_index, createNew=False)
+                    ttree.append({'name':index_name,'tree':bp_index})
+                else:
+                    raise RuntimeError(index_name+' doesn\'t exist')
             loaded_index = IndexCollection(type,afm,bptree,ttree)
             self.index_tree[tag] = loaded_index
     def save_state(self,tag):
@@ -543,11 +552,11 @@ class IndexFileManager(RegisterFileManager):
         old_tag = tag+'AUX'
         new_tag = tag
         for idx_name in bpidx_names:
-            afmgr.deleteFile(new_tag+'_'+idx_name+'.idx')
-            afmgr.renameFile(old_tag+'_'+idx_name+'.idx',new_tag+'_'+idx_name+'.idx')
+            afmgr.deleteFile(out_dir+new_tag+'_'+idx_name+'.idx')
+            afmgr.renameFile(out_dir+old_tag+'_'+idx_name+'.idx',new_tag+'_'+idx_name+'.idx')
         for tree in tidx_names:
-            afmgr.deleteFile(new_tag+'_'+idx_name+'.idx')
-            afmgr.renameFile(old_tag+'_'+idx_name+'.idx',new_tag+'_'+idx_name+'.idx')
+            afmgr.deleteFile(out_dir+new_tag+'_'+idx_name+'.idx')
+            afmgr.renameFile(out_dir+old_tag+'_'+idx_name+'.idx',new_tag+'_'+idx_name+'.idx')
 
 
         self.renameFile(file_name+'.aux',file_name)

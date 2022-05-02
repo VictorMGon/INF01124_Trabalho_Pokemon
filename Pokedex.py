@@ -1,6 +1,6 @@
 import random
-from filemanager import *
-from scraper import *
+from src.filemanager import *
+from src.scraper import *
 
 nomes_arquivo1 = ['pokemon.dat','move.dat','pkmnmove.dat']
 
@@ -185,11 +185,11 @@ def classificaAtaque(args):
     if len(args) >= 4 and args[2].isdigit() and args[3].isdigit():
         fm = args[0]
         attr = normalizeStr(args[1])
-        if attr not in move_attrs:
+        if attr not in move_attrs_num:
             print("(*) Atributo não reconhecido")
             return {'running':True}
         else:
-            attr = move_attrs[attr]
+            attr = move_attrs_num[attr]
         low = int(args[2])
         high = int(args[3])
         ordem = True

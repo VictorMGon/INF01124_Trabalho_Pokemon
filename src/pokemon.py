@@ -1,7 +1,7 @@
 import struct
 import os
 import unicodedata
-from register import *
+from src.register import *
 
 TYPES =[
 'bug','dark','dragon','electric','fairy','fighting','fire','flying','ghost',

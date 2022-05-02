@@ -1,6 +1,6 @@
 import struct
 import os
-from register import *
+from src.register import *
 
 def processInt(str):
     return int(str)

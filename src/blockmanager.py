@@ -3,9 +3,9 @@ import pickle
 import os
 import cachetools
 import time
-from filemanager import *
-from bplustree import *
-from trietree import *
+from src.filemanager import *
+from src.bplustree import *
+from src.trietree import *
 
 MAGIC_VALUE_LOC = 4
 BLOCK_ID_LOC = 8

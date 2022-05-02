@@ -1,0 +1,5 @@
+Para execução é necessário o Python, o programa já vem acompanhado com os dados finais, portanto, já está pronto para execução.
+
+Para executar, utilize o comando:
+
+py Pokedex.py

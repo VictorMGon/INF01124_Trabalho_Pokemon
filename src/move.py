@@ -1,6 +1,6 @@
 import struct
 import os
-from pokemon import *
+from src.pokemon import *
 
 class Move(IndexableRegister):
     '''

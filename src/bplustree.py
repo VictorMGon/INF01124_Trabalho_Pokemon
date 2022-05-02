@@ -6,8 +6,8 @@
 #-next and previous node(linked list)
 import time
 
-from blockmanager import *
-from filemanager import *
+from src.blockmanager import *
+from src.filemanager import *
 """Simple implementation of a B+ tree, a self-balancing tree data structure that (1) maintains sort
 data order and (2) allows insertions and access in logarithmic time.
 """
