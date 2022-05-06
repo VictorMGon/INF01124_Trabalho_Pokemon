@@ -143,6 +143,7 @@ def pesquisaPokemon(args):
             return {'running':True}
         offsets = fm.index_tree['Pokemon'].retrieve_bptree(attr).retrieve(key)
         if len(args) >= 4 and args[3].isdigit():
+            random.shuffle(offsets)
             limit = int(args[3])
             offsets = offsets[:limit]
         Pokemon = [fm.loadRegister('Pokemon',offset)['register'] for offset in offsets]
