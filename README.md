@@ -1,5 +1,6 @@
-# INF01124 - Trabalho Pokémon
+# PokédexDB - a modular B+ tree implementation
 
+INF01124 - Trabalho Pokémon
 Equipe "Raknat o Vewis"
 
 Integrantes:
